@@ -1,0 +1,99 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vendas | Loja de Variedades</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark"><img class="logo-img" src="imgs/logo.jpeg" alt="LojaVar" />LojaVariedade</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html">Dashboard</a>
+      <a class="nav-item" href="pdv.html">PDV — Caixa</a>
+      <a class="nav-item" href="produtos.html">Produtos</a>
+      <a class="nav-item" href="categorias.html">Categorias</a>
+      <a class="nav-item" href="clientes.html">Clientes</a>
+      <a class="nav-item active" href="vendas.html">Vendas</a>
+      <a class="nav-item" href="estoque.html">Estoque Crítico</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="topbar-title">Histórico de Vendas</span>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-time" id="clock"></span>
+    </header>
+
+    <div class="page-content">
+      <div class="page-header">
+        <div><h1>Vendas</h1>
+          <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">Histórico completo de transações</p>
+        </div>
+        <a href="pdv.html" class="btn btn-primary">Nova Venda</a>
+      </div>
+
+      <div class="card">
+        <div class="search-bar">
+          <select id="limiteFilter" onchange="loadVendas()" style="width:auto;min-width:140px">
+            <option value="20">Últimas 20</option>
+            <option value="50" selected>Últimas 50</option>
+            <option value="100">Últimas 100</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cliente</th>
+                <th>Produtos</th>
+                <th>Data</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="vendasTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/app.js"></script>
+<script>
+async function loadVendas() {
+  const tbody = document.getElementById('vendasTable');
+  loadingRows(tbody, 5);
+  const limite = document.getElementById('limiteFilter').value;
+  try {
+    const vendas = await api.get(`vendas.php?limite=${limite}`);
+    if (vendas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center p-40 text-sub">Nenhuma venda registrada</td></tr>';
+      return;
+    }
+    tbody.innerHTML = vendas.map(v => `
+      <tr>
+        <td class="mono">#${v.id_venda}</td>
+        <td class="muted">${v.cliente_nome || '<span class="text-dim">—</span>'}</td>
+        <td class="muted">${v.produtos || '—'}</td>
+        <td class="mono muted">${formatDate(v.data_venda)}</td>
+        <td class="mono text-accent fw-700">${formatCurrency(v.valor_total)}</td>
+      </tr>`).join('');
+  } catch (e) {
+    toast('Erro ao carregar vendas', 'error');
+  }
+}
+
+loadVendas();
+</script>
+</body>
+</html>

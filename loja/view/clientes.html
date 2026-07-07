@@ -1,0 +1,188 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clientes | Loja de Variedades</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark"><img class="logo-img" src="imgs/logo.jpeg" alt="LojaVar" />LojaVariedade</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html">Dashboard</a>
+      <a class="nav-item" href="pdv.html">PDV — Caixa</a>
+      <a class="nav-item" href="produtos.html">Produtos</a>
+      <a class="nav-item" href="categorias.html">Categorias</a>
+      <a class="nav-item active" href="clientes.html">Clientes</a>
+      <a class="nav-item" href="vendas.html">Vendas</a>
+      <a class="nav-item" href="estoque.html">Estoque Crítico</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="topbar-title">Clientes</span>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-time" id="clock"></span>
+    </header>
+
+    <div class="page-content">
+      <div class="page-header">
+        <div>
+          <h1>Clientes</h1>
+          <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">Cadastro e fidelidade dos seus clientes</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Novo Cliente</button>
+      </div>
+
+      <div class="card">
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Buscar por nome ou CPF..." oninput="loadClientes()" class="flex-1" />
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nome</th>
+                <th>CPF</th>
+                <th>Pontos</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="clientesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="modal-overlay" id="modalCliente">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalClienteTitle">Novo Cliente</span>
+      <button class="modal-close" onclick="closeModal('modalCliente')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="clienteId" />
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Nome Completo *</label>
+          <input type="text" id="clienteNome" placeholder="Nome do cliente" />
+        </div>
+        <div class="form-group full">
+          <label>CPF</label>
+          <input type="text" id="clienteCPF" placeholder="000.000.000-00" maxlength="14" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCliente');resetForm()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCliente()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+async function loadClientes() {
+  const tbody = document.getElementById('clientesTable');
+  loadingRows(tbody, 5);
+  const q = document.getElementById('searchInput').value;
+  const url = q ? `clientes.php?busca=${encodeURIComponent(q)}` : 'clientes.php';
+  try {
+    const clientes = await api.get(url);
+    if (clientes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center p-40 text-sub">Nenhum cliente cadastrado</td></tr>';
+      return;
+    }
+    tbody.innerHTML = clientes.map(c => `
+      <tr>
+        <td class="mono">${c.id_cliente}</td>
+        <td><strong>${c.nome}</strong></td>
+        <td class="mono muted">${c.cpf || '—'}</td>
+        <td><span class="text-accent mono fw-700">${c.pontos_fidelidade}</span></td>
+        <td>
+          <div class="flex gap-6">
+            <button class="btn btn-sm btn-outline" onclick='editCliente(${JSON.stringify(JSON.stringify(c))})'>Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="removerCliente(${c.id_cliente},'${c.nome.replace("'","")}')">Remover</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  } catch (e) {
+    toast('Erro ao carregar clientes', 'error');
+  }
+}
+
+function editCliente(cJson) {
+  const c = JSON.parse(cJson);
+  document.getElementById('clienteId').value = c.id_cliente;
+  document.getElementById('clienteNome').value = c.nome;
+  document.getElementById('clienteCPF').value = c.cpf || '';
+  document.getElementById('modalClienteTitle').textContent = `Editar: ${c.nome}`;
+  openModal('modalCliente');
+}
+
+async function salvarCliente() {
+  const id = document.getElementById('clienteId').value;
+  const data = {
+    nome: document.getElementById('clienteNome').value,
+    cpf: document.getElementById('clienteCPF').value
+  };
+  if (!data.nome) { toast('Nome é obrigatório', 'warning'); return; }
+
+  try {
+    if (id) {
+      await api.put(`clientes.php?id=${id}`, data);
+      toast('Cliente atualizado!', 'success');
+    } else {
+      await api.post('clientes.php', data);
+      toast('Cliente cadastrado!', 'success');
+    }
+    closeModal('modalCliente');
+    resetForm();
+    loadClientes();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function removerCliente(id, nome) {
+  confirmDelete(`Remover cliente "${nome}"?`, async () => {
+    try {
+      await api.delete(`clientes.php?id=${id}`);
+      toast('Cliente removido', 'success');
+      loadClientes();
+    } catch (e) {
+      toast('Erro: ' + e.message, 'error');
+    }
+  });
+}
+
+function resetForm() {
+  document.getElementById('clienteId').value = '';
+  document.getElementById('clienteNome').value = '';
+  document.getElementById('clienteCPF').value = '';
+  document.getElementById('modalClienteTitle').textContent = 'Novo Cliente';
+}
+
+document.getElementById('clienteCPF')?.addEventListener('input', function() {
+  let v = this.value.replace(/\D/g,'').substring(0,11);
+  v = v.replace(/(\d{3})(\d)/, '$1.$2');
+  v = v.replace(/(\d{3})(\d)/, '$1.$2');
+  v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  this.value = v;
+});
+
+loadClientes();
+</script>
+</body>
+</html>

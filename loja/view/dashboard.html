@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loja de Variedades — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark"><img class="logo-img" src="imgs/logo.jpeg" alt="LojaVar" />LojaVariedade</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item active" href="dashboard.html">Dashboard</a>
+      <a class="nav-item" href="pdv.html">PDV — Caixa</a>
+      <a class="nav-item" href="produtos.html">Produtos</a>
+      <a class="nav-item" href="categorias.html">Categorias</a>
+      <a class="nav-item" href="clientes.html">Clientes</a>
+      <a class="nav-item" href="vendas.html">Vendas</a>
+      <a class="nav-item" href="estoque.html">Estoque Crítico <span class="nav-badge" id="badgeEstoque">...</span></a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="topbar-title">Dashboard</span>
+      <div class="topbar-spacer"></div>
+      <span id="greeting" style="font-size:13px;color:var(--text-muted);margin-right:12px;"></span>
+      <span class="topbar-time" id="clock"></span>
+    </header>
+
+    <div class="page-content">
+      <div class="page-header">
+        <div>
+          <h1>Visão Geral</h1>
+          <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">Resumo rápido do seu negócio</p>
+        </div>
+        <a href="pdv.html" class="btn btn-primary">Abrir Caixa (PDV)</a>
+      </div>
+
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card skeleton"></div>
+        <div class="stat-card skeleton"></div>
+        <div class="stat-card skeleton"></div>
+        <div class="stat-card skeleton"></div>
+        <div class="stat-card skeleton"></div>
+      </div>
+
+      <div class="grid-2" id="midGrid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Vendas — Últimos 7 dias</span>
+          </div>
+          <div class="chart-bars" id="chartBars">
+            <div class="empty-state"><div class="spinner"></div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Alertas de Estoque</span>
+            <a href="estoque.html" class="btn btn-sm btn-outline">Ver todos</a>
+          </div>
+          <div id="alertsList">
+            <div class="spinner spinner-block"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Últimas Vendas</span>
+            <a href="vendas.html" class="btn btn-sm btn-outline">Ver histórico</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cliente</th>
+                <th>Data</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="vendasTable">
+              <tr><td colspan="4"><div class="spinner spinner-block"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/app.js"></script>
+<script>
+async function loadDashboard() {
+  try {
+    const stats = await api.get('vendas.php?action=dashboard');
+
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card success">
+        <div class="stat-label">Vendas Hoje</div>
+        <div class="stat-value success">${stats.hoje.total}</div>
+        <div class="stat-sub">${formatCurrency(stats.hoje.receita)}</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Receita do Mês</div>
+        <div class="stat-value accent">${formatCurrency(stats.mes.receita)}</div>
+        <div class="stat-sub">${stats.mes.total} transações</div>
+      </div>
+      <div class="stat-card ${stats.estoque_critico > 0 ? 'danger' : 'success'}">
+        <div class="stat-label">Estoque Crítico</div>
+        <div class="stat-value ${stats.estoque_critico > 0 ? 'danger' : 'success'}">${stats.estoque_critico}</div>
+        <div class="stat-sub">produto(s) abaixo do mínimo</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-label">Total Clientes</div>
+        <div class="stat-value info">${stats.total_clientes}</div>
+        <div class="stat-sub">clientes cadastrados</div>
+      </div>
+      <div class="stat-card pink">
+        <div class="stat-label">Mais Vendido</div>
+        <div class="stat-value-name">${stats.mais_vendido?.nome || '—'}</div>
+        <div class="stat-sub">${stats.mais_vendido?.qtd || 0} vendas</div>
+      </div>
+    `;
+
+    document.getElementById('badgeEstoque').textContent = stats.estoque_critico || '0';
+
+    const g = stats.grafico_semana;
+    if (g && g.length) {
+      const max = Math.max(...g.map(r => r.total));
+      document.getElementById('chartBars').innerHTML = g.map(r => {
+        const pct = max > 0 ? (r.total / max) * 100 : 0;
+        const dia = new Date(r.dia).toLocaleDateString('pt-BR', {weekday:'short'});
+        return `
+          <div class="chart-bar-wrap" title="${formatCurrency(r.total)}">
+            <div class="chart-bar" style="height:${Math.max(pct,4)}%"></div>
+            <div class="chart-label">${dia}</div>
+          </div>`;
+      }).join('');
+    } else {
+      document.getElementById('chartBars').innerHTML = '<div class="empty-p20"><p>Sem dados esta semana</p></div>';
+    }
+
+  } catch (e) {
+    toast('Erro ao carregar dashboard: ' + e.message, 'error');
+  }
+
+  try {
+    const urgentes = await api.get('produtos.php?action=urgentes');
+    const list = document.getElementById('alertsList');
+    if (urgentes.length === 0) {
+      list.innerHTML = '<div class="empty-p20"><p>Estoque em dia</p></div>';
+    } else {
+      list.innerHTML = urgentes.slice(0, 5).map(p => `
+        <div class="alert alert-${p.qtde_estoque === 0 ? 'danger' : 'warning'} mb-8">
+          <div>
+            <strong>${p.nome}</strong><br>
+            <small>Estoque: ${p.qtde_estoque} unidade(s)</small>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (e) {}
+
+  try {
+    const vendas = await api.get('vendas.php?limite=8');
+    const tbody = document.getElementById('vendasTable');
+    if (vendas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="muted text-center p-32">Nenhuma venda registrada</td></tr>';
+    } else {
+      tbody.innerHTML = vendas.map(v => `
+        <tr>
+          <td class="mono">#${v.id_venda}</td>
+          <td class="muted">${v.cliente_nome || '—'}</td>
+          <td class="mono muted">${formatDate(v.data_venda)}</td>
+          <td class="mono text-accent">${formatCurrency(v.valor_total)}</td>
+        </tr>
+      `).join('');
+    }
+  } catch (e) {}
+}
+
+// Saudação amigável
+(function() {
+  const h = new Date().getHours();
+  let saudacao = 'Boa noite';
+  if (h < 12) saudacao = 'Bom dia';
+  else if (h < 18) saudacao = 'Boa tarde';
+  document.getElementById('greeting').textContent = `${saudacao}!`;
+})();
+
+loadDashboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estoque Crítico | Loja de Variedades</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark"><img class="logo-img" src="imgs/logo.jpeg" alt="LojaVar" />LojaVariedade</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html">Dashboard</a>
+      <a class="nav-item" href="pdv.html">PDV — Caixa</a>
+      <a class="nav-item" href="produtos.html">Produtos</a>
+      <a class="nav-item" href="categorias.html">Categorias</a>
+      <a class="nav-item" href="clientes.html">Clientes</a>
+      <a class="nav-item" href="vendas.html">Vendas</a>
+      <a class="nav-item active" href="estoque.html">Estoque Crítico</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="topbar-title">Estoque Crítico</span>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-time" id="clock"></span>
+    </header>
+
+    <div class="page-content">
+      <div class="page-header">
+        <div><h1>Gestão de Estoque</h1>
+          <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">Monitore produtos com estoque baixo ou zerado</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Produtos com Estoque Baixo (≤ 5 unidades)</span>
+          <button class="btn btn-sm btn-outline" onclick="loadUrgentes()">Atualizar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Produto</th><th>Categoria</th><th>Estoque Atual</th><th>Situação</th><th>Ação</th></tr>
+            </thead>
+            <tbody id="urgentesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/app.js"></script>
+<script>
+async function loadUrgentes() {
+  const tbody = document.getElementById('urgentesTable');
+  loadingRows(tbody, 5);
+  try {
+    const produtos = await api.get('produtos.php?action=urgentes');
+    if (produtos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center p-32 text-success">Todos os produtos estão com estoque adequado!</td></tr>';
+      return;
+    }
+    tbody.innerHTML = produtos.map(p => {
+      const sem = p.qtde_estoque === 0;
+      return `
+        <tr>
+          <td><strong>${p.nome}</strong></td>
+          <td><span class="badge badge-info">${p.categoria_nome || '—'}</span></td>
+          <td><span class="mono fw-700" style="color:${sem ? 'var(--danger)' : 'var(--accent)'}">${p.qtde_estoque}</span></td>
+          <td>${sem
+            ? '<span class="badge badge-danger">Sem estoque</span>'
+            : '<span class="badge badge-warning">Estoque baixo</span>'
+          }</td>
+          <td><a href="produtos.html" class="btn btn-sm btn-primary">Repor</a></td>
+        </tr>`;
+    }).join('');
+  } catch (e) {
+    toast('Erro ao carregar', 'error');
+  }
+}
+
+loadUrgentes();
+</script>
+</body>
+</html>

@@ -1,0 +1,275 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDV — Caixa | Loja de Variedades</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark"><img class="logo-img" src="imgs/logo.jpeg" alt="LojaVar" />LojaVariedade</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html">Dashboard</a>
+      <a class="nav-item active" href="pdv.html">PDV — Caixa</a>
+      <a class="nav-item" href="produtos.html">Produtos</a>
+      <a class="nav-item" href="categorias.html">Categorias</a>
+      <a class="nav-item" href="clientes.html">Clientes</a>
+      <a class="nav-item" href="vendas.html">Vendas</a>
+      <a class="nav-item" href="estoque.html">Estoque Crítico</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="topbar-title">PDV — Ponto de Venda</span>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-time" id="clock"></span>
+    </header>
+
+    <div class="page-content">
+      <div class="pdv-layout">
+
+        <div class="pdv-left">
+
+          <div class="card p-16">
+            <div class="card-header mb-10">
+              <span class="card-title">Cliente (opcional)</span>
+              <button class="btn btn-sm btn-outline" onclick="clearCliente()">Limpar</button>
+            </div>
+            <div class="flex gap-10">
+              <input type="text" id="cpfInput" placeholder="Digite o CPF do cliente..." class="flex-1" />
+              <button class="btn btn-outline" onclick="buscarCliente()">Buscar</button>
+            </div>
+            <div id="clienteInfo" class="mt-10"></div>
+          </div>
+
+          <div class="card p-16">
+            <div class="card-header mb-10">
+              <span class="card-title">Adicionar Produto</span>
+            </div>
+            <div class="flex gap-10 mb-12">
+              <input type="text" id="prodSearch" placeholder="Nome do produto..." oninput="searchProdutos()" class="flex-1" />
+              <select id="catFilter" onchange="searchProdutos()" style="width:auto;min-width:140px">
+                <option value="">Todas categorias</option>
+              </select>
+            </div>
+
+            <div id="prodResultados" class="scroll-area">
+              <div class="empty-p24">
+                <p>Busque um produto para adicionar</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="pdvAlertas"></div>
+        </div>
+
+        <div class="pdv-right">
+          <div class="pdv-cart-header">
+            Carrinho
+            <span class="cart-count" id="cartCount">0 item(s)</span>
+          </div>
+
+          <div class="pdv-cart-items" id="cartItems">
+            <div class="empty-p32">
+              <p>Carrinho vazio</p>
+            </div>
+          </div>
+
+          <div class="pdv-cart-footer">
+            <div class="pdv-total">
+              <div class="pdv-total-label">TOTAL</div>
+              <div class="pdv-total-value" id="totalDisplay">R$ 0,00</div>
+            </div>
+
+            <button class="btn btn-success w-full justify-center p-16" onclick="finalizarVenda()" id="btnFinalizar">
+              Finalizar Venda
+            </button>
+            <button class="btn btn-outline w-full justify-center mt-8" onclick="clearCart()">
+              Limpar Carrinho
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/app.js"></script>
+<script>
+let cart = [];
+let clienteAtual = null;
+let allProdutos = [];
+
+async function init() {
+  const cats = await api.get('categorias.php');
+  const sel = document.getElementById('catFilter');
+  cats.forEach(c => sel.innerHTML += `<option value="${c.id_categoria}">${c.nome}</option>`);
+  allProdutos = await api.get('produtos.php');
+}
+
+async function buscarCliente() {
+  const cpf = document.getElementById('cpfInput').value.trim();
+  if (!cpf) return toast('Informe o CPF', 'warning');
+  try {
+    const c = await api.get(`clientes.php?cpf=${encodeURIComponent(cpf)}`);
+    clienteAtual = c;
+    document.getElementById('clienteInfo').innerHTML = `
+      <div class="cliente-label"><strong>${c.nome}</strong> — ${c.pontos_fidelidade} pts</div>`;
+    toast(`Cliente ${c.nome} encontrado!`, 'success');
+  } catch (e) {
+    toast('Cliente não encontrado', 'warning');
+    clienteAtual = null;
+    document.getElementById('clienteInfo').innerHTML = '';
+  }
+}
+
+function clearCliente() {
+  clienteAtual = null;
+  document.getElementById('cpfInput').value = '';
+  document.getElementById('clienteInfo').innerHTML = '';
+}
+
+function searchProdutos() {
+  const q = document.getElementById('prodSearch').value.toLowerCase();
+  const cat = document.getElementById('catFilter').value;
+  const res = document.getElementById('prodResultados');
+
+  let produtos = allProdutos;
+  if (cat) produtos = produtos.filter(p => p.id_categoria == cat);
+  if (q) produtos = produtos.filter(p => p.nome.toLowerCase().includes(q));
+
+  if (produtos.length === 0) {
+    res.innerHTML = '<div class="empty-p20"><p>Nenhum produto encontrado</p></div>';
+    return;
+  }
+
+  res.innerHTML = produtos.slice(0, 20).map(p => {
+    const semEstoque = p.qtde_estoque === 0;
+    return `
+      <div class="flex items-center gap-12 p-10 prod-result-item" style="opacity:${semEstoque ? 0.5 : 1}">
+        <div class="flex-1">
+          <div class="prod-name">${p.nome}</div>
+          <div class="prod-meta">${p.categoria_nome || '—'} Estoque: ${p.qtde_estoque}</div>
+        </div>
+        <div class="prod-price">${formatCurrency(p.preco)}</div>
+        <button class="btn btn-sm btn-primary" onclick='addToCart(${JSON.stringify(JSON.stringify(p))})' ${semEstoque ? 'disabled' : ''}>
+              ${semEstoque ? 'Sem estoque' : '+ Adicionar'}
+        </button>
+      </div>`;
+  }).join('');
+}
+
+function addToCart(pJson) {
+  const p = JSON.parse(pJson);
+  const existing = cart.find(i => i.id_produto === p.id_produto);
+  if (existing) {
+    if (existing.quantidade >= p.qtde_estoque) {
+      toast('Estoque insuficiente!', 'warning'); return;
+    }
+    existing.quantidade++;
+  } else {
+    if (p.qtde_estoque <= 0) { toast('Produto sem estoque!', 'warning'); return; }
+    cart.push({ id_produto: p.id_produto, nome: p.nome, preco: parseFloat(p.preco), quantidade: 1, qtde_estoque: p.qtde_estoque });
+  }
+  renderCart();
+  toast(`${p.nome} adicionado!`, 'success');
+}
+
+function removeFromCart(id) {
+  cart = cart.filter(i => i.id_produto !== id);
+  renderCart();
+}
+
+function updateQty(id, delta) {
+  const item = cart.find(i => i.id_produto === id);
+  if (!item) return;
+  item.quantidade = Math.max(1, Math.min(item.quantidade + delta, item.qtde_estoque));
+  renderCart();
+}
+
+function renderCart() {
+  const container = document.getElementById('cartItems');
+  document.getElementById('cartCount').textContent = `${cart.length} item(s)`;
+
+  if (cart.length === 0) {
+    container.innerHTML = '<div class="empty-p32"><p>Carrinho vazio</p></div>';
+    calcTotal();
+    return;
+  }
+
+  container.innerHTML = cart.map(item => `
+    <div class="cart-item">
+      <div class="cart-item-name">
+        ${item.nome}
+        <div class="flex items-center gap-6 mt-4">
+          <button class="btn-icon qty-btn" onclick="updateQty('${item.id_produto}', -1)">−</button>
+          <span class="qty-value">${item.quantidade}</span>
+          <button class="btn-icon qty-btn" onclick="updateQty('${item.id_produto}', 1)">+</button>
+        </div>
+      </div>
+      <div>
+        <div class="cart-item-price">${formatCurrency(item.preco * item.quantidade)}</div>
+        <div class="unit-price">${formatCurrency(item.preco)}/un</div>
+      </div>
+      <span class="cart-item-remove" onclick="removeFromCart('${item.id_produto}')">×</span>
+    </div>
+  `).join('');
+
+  calcTotal();
+}
+
+function calcTotal() {
+  const total = cart.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  document.getElementById('totalDisplay').textContent = formatCurrency(total);
+}
+
+function clearCart() {
+  cart = [];
+  renderCart();
+}
+
+async function finalizarVenda() {
+  if (cart.length === 0) { toast('Carrinho vazio!', 'warning'); return; }
+
+  const btn = document.getElementById('btnFinalizar');
+  btn.disabled = true;
+  btn.innerHTML = 'Processando...';
+
+  try {
+    const itens = cart.map(i => ({
+      id_produto: i.id_produto,
+      quantidade: i.quantidade
+    }));
+
+    await api.post('vendas.php', {
+      id_cliente: clienteAtual?.id_cliente || null,
+      itens: itens
+    });
+
+    clearCart();
+    clearCliente();
+    toast('Venda finalizada', 'success');
+
+    allProdutos = await api.get('produtos.php');
+    searchProdutos();
+
+  } catch (e) {
+    toast('Erro ao finalizar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Finalizar Venda';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
